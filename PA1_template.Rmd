@@ -1,25 +1,119 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: 'Reproducible Research: Peer Assessment 1'
+output: html_document
+keep_md: true
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
 ## Loading and preprocessing the data
+```{r}
+# Read data
+activity <- read.csv("activity.csv")
+# Remove NAs
+activityClean <- activity[complete.cases(activity),]
+```
 
+## What is the mean total number of steps taken per day?
+```{r,warning=FALSE,message=FALSE}
+library(dplyr)
+# Calculate the total number of steps taken per day
+sumSteps <- aggregate(steps~date,activityClean,sum)
+# Make a histogram of the total number of steps taken each day
+histSteps <- hist(sumSteps$steps, main="Histogram of the Total Number of Steps", xlab="Steps per Day",col="blue")
+# Calculate and report the mean and median of the total number of steps taken per day
+library(scales)
+meanClean <- mean(sumSteps$steps)
+meanClean <- comma_format(digits=5)(meanClean)
+medianClean <- median(sumSteps$steps)
+medianClean <- comma(medianClean)
+```
+* The `mean` of the total number of steps taken per day is **`r meanClean`.**
 
-
-## What is mean total number of steps taken per day?
-
-
+* The `median` of the total number of steps taken per day is **`r medianClean`.**
 
 ## What is the average daily activity pattern?
+```{r}
+# Make a time series plot of the 5-minute interval 
+meanSteps <- aggregate(steps~interval,activityClean,mean)
+plot(meanSteps$interval,meanSteps$steps,type="l",main="Average Number of Steps per Interval",xlab="Interval",ylab="Average Steps",col="blue")
+```
 
-
+The interval that contains the maximum number of steps is:
+```{r}
+maxInterval <- meanSteps[which.max(meanSteps$steps),]
+maxInterval
+```
 
 ## Imputing missing values
+```{r}
+# Compute total number of missing values
+TotalMissing <- sum(is.na(activity))
+TotalMissing <- comma(TotalMissing)
+```
+* The total number of missing values is **`r TotalMissing`**.
 
+* To fill in all missing values, the strategy is to replace them with the average steps calculated per interval as shown below.
+```{r}
+# Fill in all missing values based on the average steps per interval
+for (i in 1:nrow(activity)) {
+  if(is.na(activity$steps[i])) {
+    value <- meanSteps$steps[which(meanSteps$interval == activity$interval[i])]
+    activity$steps[i] <- value
+  }
+}
+activity$steps <- round(activity$steps,digits=0)
+```
 
+* The histogram of the new dataset with imputed values is then compared to the histogram of the old dataset where the null values are removed.
+```{r,warning=FALSE,message=FALSE}
+# Recalculate the mean, median, and histogram with imputed values
+sumStepsImputed <- aggregate(steps~date,activity,sum)
+
+# Make a histogram of the total number of steps taken each day with imputed values
+par(mfrow=c(2,1),mar=c(5,4,2,1)) 
+histSteps <- hist(sumSteps$steps, main="Histogram of the Total Number of Steps before Imputing", xlab="Steps per Day",col="blue")
+histStepsImputed <- hist(sumStepsImputed$steps, main="Histogram of the Total Number of Steps after Imputing",xlab="Steps per Day",col="blue")
+
+# Calculate and report the mean and median of the total number of steps taken per day wuth imputed values
+meanImputed <- mean(sumStepsImputed$steps)
+meanImputed <- comma_format(digits=5)(meanImputed)
+medianImputed <- median(sumStepsImputed$steps)
+medianImputed <- comma(medianImputed)
+```
+
+* The `mean` of the new dataset is **`r meanImputed`** vs the old mean of **`r meanClean`**.
+
+* The `median` of the new dataset is **`r medianImputed`** vs the old median of **`r medianClean`**.
+
+* *It can be observed that in terms of the histogram, mean and median, there is no significant difference between the two datasets.* 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r,warning=FALSE,message=FALSE}
+#Create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+library(chron)
+
+for(i in 1:nrow(activity)){ ### Order type of day
+  if(is.weekend(activity$date[i])=="TRUE"){ 
+    activity$type_of_day[i]<-"Weekend"
+  }
+  else { 
+    activity$type_of_day[i]<-"Weekday"
+  }
+}
+
+#Make a panel plot containing a time series plot of the 5-minute interval averaged across all weekday days or weekend days (y-axis)
+activity$type_of_day <- as.factor(activity$type_of_day)
+
+meanStepsWeekend <- aggregate(steps~interval+type_of_day,activity,mean)
+library(ggplot2)
+g <- ggplot(meanStepsWeekend, aes(interval, steps))
+g + geom_line(stat = "identity", aes(color = type_of_day)) + 
+  facet_grid(type_of_day~.) +
+  labs(x="Interval", y="Steps",title= "Number of Steps per Interval")
+```
+
+
+* It can be observed that the activity pattern during weekends is fluctuating more than weekdays.
